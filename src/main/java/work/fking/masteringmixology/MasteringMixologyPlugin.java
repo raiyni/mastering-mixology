@@ -6,6 +6,7 @@ import net.runelite.api.FontID;
 import net.runelite.api.GameState;
 import net.runelite.api.InventoryID;
 import net.runelite.api.Player;
+import net.runelite.api.Skill;
 import net.runelite.api.TileObject;
 import net.runelite.api.coords.LocalPoint;
 import net.runelite.api.events.GameStateChanged;
@@ -435,20 +436,12 @@ public class MasteringMixologyPlugin extends Plugin {
             return;
         }
 
-        int indexOffset = 0;
         for (int i = 0; i < potionOrders.size(); i++) {
             var order = potionOrders.get(i);
 
-            var orderGraphic = children[order.idx() * 2 + 1 + indexOffset];
-            var orderText = children[order.idx() * 2 + 2 + indexOffset];
+            var orderGraphic = children[order.idx() + 1];
+            var orderText = children[order.idx() + 2];
 
-            // If anyone still has orders they don't have the herblore level to deliver there's an extra RECTANGLE component which
-            // causes the idx calculations to select the wrong components
-            if (orderGraphic.getType() != WidgetType.GRAPHIC || orderText.getType() != WidgetType.TEXT) {
-                indexOffset++;
-                orderGraphic = children[order.idx() * 2 + 1 + indexOffset];
-                orderText = children[order.idx() * 2 + 2 + indexOffset];
-            }
             var builder = new StringBuilder(orderText.getText());
 
             if (order.fulfilled()) {
@@ -458,15 +451,13 @@ public class MasteringMixologyPlugin extends Plugin {
             }
             orderText.setText(builder.toString());
 
-            if (i != order.idx()) {
-                // update component position
-                var y = 20 + (i * 26) + 3;
-                orderGraphic.setOriginalY(y);
-                orderText.setOriginalY(y);
+            // update component position
+            var y = 20 + (i * 26) + 3;
+            orderGraphic.setOriginalY(y);
+            orderText.setOriginalY(y);
 
-                orderGraphic.revalidate();
-                orderText.revalidate();
-            }
+            orderGraphic.revalidate();
+            orderText.revalidate();
         }
     }
 
@@ -639,6 +630,8 @@ public class MasteringMixologyPlugin extends Plugin {
     private List<PotionOrder> getPotionOrders() {
         var potionOrders = new ArrayList<PotionOrder>(3);
 
+        int offset = 0;
+        int herbloreLevel = client.getRealSkillLevel(Skill.HERBLORE);
         for (int orderIdx = 0; orderIdx < 3; orderIdx++) {
             var potionType = getPotionType(orderIdx);
             var potionModifier = getPotionModifier(orderIdx);
@@ -646,7 +639,15 @@ public class MasteringMixologyPlugin extends Plugin {
             if (potionType == null || potionModifier == null) {
                 continue;
             }
-            potionOrders.add(new PotionOrder(orderIdx, potionType, potionModifier));
+
+            if (herbloreLevel < potionType.level())
+            {
+                offset++;
+                LOGGER.debug("Order {}: herblore {} below required level {}", orderIdx, herbloreLevel, potionType);
+                LOGGER.debug("Offset now {}", offset);
+            }
+
+            potionOrders.add(new PotionOrder(orderIdx * 2 + offset, potionType, potionModifier));
         }
         return potionOrders;
     }
